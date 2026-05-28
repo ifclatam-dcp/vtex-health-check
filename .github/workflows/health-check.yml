@@ -1,0 +1,33 @@
+name: VTEX Health Check Ping
+
+on:
+  schedule:
+    - cron: '*/45 * * * *'
+  workflow_dispatch:
+
+env:
+  ENDPOINTS: |
+    https://credinaldo--naldoqa.myvtex.com/_v/loan-list?status=true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping all endpoints
+        run: |
+          FAILED=0
+          while IFS= read -r URL; do
+            [ -z "$URL" ] && continue
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL")
+            echo "[$HTTP_STATUS] $URL"
+            if [ "$HTTP_STATUS" -ne 200 ]; then
+              echo "FAIL: $URL returned $HTTP_STATUS"
+              FAILED=1
+            fi
+          done <<< "$ENDPOINTS"
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo "One or more health checks failed"
+            exit 1
+          fi
+          echo "All endpoints OK"
