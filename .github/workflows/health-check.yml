@@ -6,8 +6,13 @@ on:
   workflow_dispatch:
 
 env:
-  ENDPOINTS: |
+  # GET endpoints (one per line)
+  GET_ENDPOINTS: |
     https://credinaldo--naldoqa.myvtex.com/_v/loan-list?status=true
+
+  # POST endpoints (one per line)
+  POST_ENDPOINTS: |
+    https://credinaldo--naldoqa.myvtex.com/v1/integrations/loan/orderform?status=true
 
 jobs:
   ping:
@@ -15,16 +20,44 @@ jobs:
     steps:
       - name: Ping all endpoints
         run: |
+          MAX_RETRIES=3
           FAILED=0
+
+          check_endpoint() {
+            local METHOD=$1
+            local URL=$2
+            local EXTRA_ARGS=$3
+
+            for ATTEMPT in $(seq 1 $MAX_RETRIES); do
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 $EXTRA_ARGS "$URL")
+              echo "[$METHOD][Attempt $ATTEMPT][$HTTP_STATUS] $URL"
+              if [ "$HTTP_STATUS" -eq 200 ]; then
+                return 0
+              fi
+              if [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; then
+                echo "  Retrying in 10s..."
+                sleep 10
+              fi
+            done
+            echo "FAIL: $URL returned $HTTP_STATUS after $MAX_RETRIES attempts"
+            return 1
+          }
+
+          # GET endpoints
           while IFS= read -r URL; do
             [ -z "$URL" ] && continue
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL")
-            echo "[$HTTP_STATUS] $URL"
-            if [ "$HTTP_STATUS" -ne 200 ]; then
-              echo "FAIL: $URL returned $HTTP_STATUS"
+            if ! check_endpoint "GET" "$URL" ""; then
               FAILED=1
             fi
-          done <<< "$ENDPOINTS"
+          done <<< "$GET_ENDPOINTS"
+
+          # POST endpoints (body: {})
+          while IFS= read -r URL; do
+            [ -z "$URL" ] && continue
+            if ! check_endpoint "POST" "$URL" "-X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{}'"; then
+              FAILED=1
+            fi
+          done <<< "$POST_ENDPOINTS"
 
           if [ "$FAILED" -ne 0 ]; then
             echo "One or more health checks failed"
