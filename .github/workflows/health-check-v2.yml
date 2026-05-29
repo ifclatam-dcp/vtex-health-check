@@ -2,7 +2,7 @@ name: VTEX Health Check Ping
 
 on:
   schedule:
-    - cron: '23 */1 * * *'
+    - cron: '42 */1 * * *'
   workflow_dispatch:
 
 env:
