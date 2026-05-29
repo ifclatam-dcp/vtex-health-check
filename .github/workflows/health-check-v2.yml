@@ -1,4 +1,4 @@
-name: VTEX Health Check Ping
+name: VTEX Health Check Ping v2
 
 on:
   schedule:
